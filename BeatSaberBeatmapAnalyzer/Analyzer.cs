@@ -31,6 +31,7 @@ namespace BeatSaberBeatmapAnalyzer
             public float cutDistancePerSec;
             public float cutDirectionEntropy;
             public float notePosEntropy;
+            public int maxScore;
         }
 
         private float totalBeats = 0;
@@ -70,15 +71,51 @@ namespace BeatSaberBeatmapAnalyzer
             }
 
             SongMetrics sm = new SongMetrics();
+            sm.avgNotesPerSec = GetAverageNotesPerSecond(allNotes, true);
             sm.cutDistancePerSec = GetCutDistancePerSecond(redNotes) + GetCutDistancePerSecond(blueNotes);
+           // sm.cutDirectionEntropy = Entropy(cutDirections);
+           // sm.notePosEntropy = Entropy(notePos);
+            sm.maxScore = MaxScoreForNumberOfNotes(allNotes.Count);
             return sm;
         }
         
-        public float GetAverageNotesPerSecond(ArrayList notes)
+        public float GetAverageNotesPerSecond(ArrayList notes, bool valueNoDirectionLess)
         {
-            return notes.Count / BeatsToSeconds(totalBeats);
+            if (valueNoDirectionLess)
+            {
+                return GetWeightedNoteCount(notes) / BeatsToSeconds(totalBeats);
+            } else
+            {
+                return notes.Count / BeatsToSeconds(totalBeats);
+            }
         }
-        
+
+        public float GetWeightedNoteCount(ArrayList notes)
+        {
+            float newNotes = 0;
+            for (int i = 0; i < notes.Count - 1; i += 2)
+            {
+                Note currentNote = (Note)notes[i];
+                Note nextNote = (Note)notes[i + 1];
+                if (currentNote.time != nextNote.time)
+                {
+                    newNotes += 3;
+                }
+                else
+                {
+                    if (currentNote.cutDirection == 8 && nextNote.cutDirection == 8)
+                    {
+                        newNotes += 0.2f;
+                    }
+                    else
+                    {
+                        newNotes += 2;
+                    }
+
+                }
+            }
+            return newNotes;
+        }
         public float GetCutDistance(ArrayList notes)
         {
             float totalDistance = 0f;
@@ -121,7 +158,7 @@ namespace BeatSaberBeatmapAnalyzer
         {
             return GetCutDistance(notes) / BeatsToSeconds(totalBeats);
         }
-        
+
         #region Helper Functions
 
         private float CutNoteWithBlade(Note note, ref Vector2 bladePos)
@@ -133,25 +170,27 @@ namespace BeatSaberBeatmapAnalyzer
 
             if (note.cutDirection == 8)
             {
-                // use current direction as cutdirection
                 cutDirection = (notePos - bladePos).normalized;
+                bladePos = notePos + cutDirection;
             }
             else
             {
                 cutDirection = note.CutDirectionVector();
+                // distance from blade pos to start of cut
+                distance += Vector2.Distance(bladePos, notePos - cutDirection * cutLeadDistance);
+                distance += cutLeadDistance + cutFollowDistance;
+                bladePos = notePos + cutDirection * cutFollowDistance;
             }
-            // distance from blade pos to start of cut
-            distance += Vector2.Distance(bladePos, notePos - cutDirection * cutLeadDistance);
+
             // length of cut
-            distance += cutLeadDistance + cutFollowDistance;
-            bladePos = notePos + cutDirection * cutFollowDistance;
+
             return distance;
         }
 
         private float CutNotesWithBlade(ArrayList notes, ref Vector2 bladePos)
         {
             if (notes.Count <= 0) return 0f;
-            
+
             // find minimum distance through the set of notes - i.e. the optimum swipe
             float distance = float.PositiveInfinity;
             Vector2 bladeTemp = new Vector2(bladePos.x, bladePos.y);
@@ -187,7 +226,34 @@ namespace BeatSaberBeatmapAnalyzer
             float secondsPerBeat = minutesPerBeat * 60;
             return beats * secondsPerBeat;
         }
+        public  int MaxScoreForNumberOfNotes(int noteCount)
+        {
+            int score = 0;
+            int multiplier = 1;
+            int multiplierIncreaseProgress = 0;
+            int multiplierIncreaseMaxProgress = 2;
 
+            for (int i = 0; i < noteCount; i++)
+            {
+                if (multiplier < 8)
+                {
+                    if (multiplierIncreaseProgress < multiplierIncreaseMaxProgress)
+                    {
+                        multiplierIncreaseProgress++;
+                    }
+                    if (multiplierIncreaseProgress >= multiplierIncreaseMaxProgress)
+                    {
+                        multiplier *= 2;
+                        multiplierIncreaseProgress = 0;
+                        multiplierIncreaseMaxProgress = multiplier * 2;
+                    }
+                }
+
+                score += 110 * multiplier;
+            }
+
+            return score;
+        }
         #endregion
     }
 }

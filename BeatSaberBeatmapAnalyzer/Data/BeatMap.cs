@@ -47,32 +47,40 @@ namespace BeatSaberBeatmapAnalyzer
 
             var obstaclesList = new List<Obstacle>();
             var obs = data["_obstacles"];
-            for (int i = 0; i < obs.AsArray.Count; i++)
+            if (obs != null)
             {
-                var obstacle = obs[i];
-                obstaclesList.Add(new Obstacle()
+                for (int i = 0; i < obs.AsArray.Count; i++)
                 {
-                    time = obstacle["_time"],
-                    type = obstacle["_type"],
-                    duration = obstacle["_duration"],
-                    width = obstacle["_width"]
-                });
+                    var obstacle = obs[i];
+                    obstaclesList.Add(new Obstacle()
+                    {
+                        time = obstacle["_time"],
+                        type = obstacle["_type"],
+                        duration = obstacle["_duration"],
+                        width = obstacle["_width"]
+                    });
+                }
+                obstacles = obstaclesList.ToArray();
             }
-            obstacles = obstaclesList.ToArray();
+           
 
             var eventsList = new List<BeatEvent>();
             var evs = data["_events"];
-            for (int i = 0; i < evs.AsArray.Count; i++)
+            if (evs != null)
             {
-                var beatEvent = evs[i];
-                eventsList.Add(new BeatEvent()
+                for (int i = 0; i < evs.AsArray.Count; i++)
                 {
-                    time = beatEvent["_time"],
-                    type = beatEvent["_type"],
-                    value = beatEvent["_value"]
-                });
+                    var beatEvent = evs[i];
+                    eventsList.Add(new BeatEvent()
+                    {
+                        time = beatEvent["_time"],
+                        type = beatEvent["_type"],
+                        value = beatEvent["_value"]
+                    });
+                }
+                events = eventsList.ToArray();
             }
-            events = eventsList.ToArray();
+         
 
             var notesList = new List<Note>();
             var ns = data["_notes"];
@@ -85,7 +93,7 @@ namespace BeatSaberBeatmapAnalyzer
                     lineIndex = note["_lineIndex"],
                     lineLayer = note["_lineLayer"],
                     type = note["_type"],
-                    cutDirection = note["_cutDirecetion"]
+                    cutDirection = note["_cutDirection"]
                 });
             }
             notes = notesList.ToArray();

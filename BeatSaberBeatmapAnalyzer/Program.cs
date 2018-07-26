@@ -15,7 +15,7 @@ namespace BeatSaberBeatmapAnalyzer
         
         private Analyzer analyzer;
         private List<SongDifficulty> songDifficulties;
-        private string rootPath = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Beat Saber";
+        private string rootPath = @"E:\Games\SteamLibrary\steamapps\common\Beat Saber\";
 
         private void Start()
         {
@@ -30,13 +30,16 @@ namespace BeatSaberBeatmapAnalyzer
             List<CustomSongInfo> songInfos = SongLoader.RetrieveAllSongs(rootPath);
             foreach (CustomSongInfo song in songInfos)
             {
-                foreach (CustomSongInfo.DifficultyLevel difficulty in song.difficultyLevels)
+                if (song.songName != "Hit The Blocks") //This map causes an infinite loop, don't know why
                 {
-                    BeatMap beatMap = SongLoader.GetBeatMap(song, difficulty);
-                    if (beatMap == null) continue;
-                    var metrics = analyzer.Analyze(beatMap);
-                    SongDifficulty d = new SongDifficulty(song.songName, difficulty.difficulty, metrics);
-                    songDifficulties.Add(d);
+                    foreach (CustomSongInfo.DifficultyLevel difficulty in song.difficultyLevels)
+                    {
+                        BeatMap beatMap = SongLoader.GetBeatMap(song, difficulty);
+                        if (beatMap == null) continue;
+                        var metrics = analyzer.Analyze(beatMap);
+                        SongDifficulty d = new SongDifficulty(song.songName, difficulty.difficulty, metrics);
+                        songDifficulties.Add(d);
+                    }
                 }
             }
         }
@@ -67,7 +70,7 @@ namespace BeatSaberBeatmapAnalyzer
                     d.difficulty
                 );
             }
-            Console.WriteLine(result);
+            System.IO.File.WriteAllText("results.txt", result);
         }
 
         public class SongDifficulty
@@ -87,7 +90,7 @@ namespace BeatSaberBeatmapAnalyzer
 
             public float ComputeDifficulty()
             {
-                return m.avgNotesPerSec * m.maxNotesPerBarPerSec * m.cutDistancePerSec;
+                return m.avgNotesPerSec * m.cutDistancePerSec;
             }
         }
     }
