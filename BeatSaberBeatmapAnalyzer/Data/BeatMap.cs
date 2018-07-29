@@ -7,6 +7,7 @@ namespace BeatSaberBeatmapAnalyzer
     [Serializable]
     public class BeatMap
     {
+        public string songName; //for debugging
         public string version; // format version
         public int beatsPerMinute; // track bpm
         public int beatsPerBar;

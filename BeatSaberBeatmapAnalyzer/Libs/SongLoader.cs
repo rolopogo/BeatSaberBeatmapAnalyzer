@@ -41,7 +41,10 @@ namespace BeatSaberBeatmapAnalyzer
         public static BeatMap GetBeatMap(CustomSongInfo song, CustomSongInfo.DifficultyLevel diffLevel)
         {
             if (!File.Exists(song.path + "/" + diffLevel.jsonPath)) return null;
-
+            if (song.songName == "TTFAF")
+            {
+                Console.WriteLine("heck");
+            }
             var json = File.ReadAllText(song.path + "/" + diffLevel.jsonPath);
             return new BeatMap(json);
         }

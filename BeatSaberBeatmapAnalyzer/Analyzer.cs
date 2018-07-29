@@ -10,8 +10,8 @@ namespace BeatSaberBeatmapAnalyzer
         private ArrayList redNotes;
         private ArrayList blueNotes;
         private ArrayList allNotes;
-        private const float cutLeadDistance = 2f;
-        private const float cutFollowDistance = 1f;
+        private float cutLeadDistance = 2f;
+        private float cutFollowDistance = 1f;
 
         // Sightreading hardness values
         private const float baseHardness = 1f;
@@ -29,8 +29,9 @@ namespace BeatSaberBeatmapAnalyzer
             public float avgNotesPerSec;
             public float maxNotesPerBarPerSec;
             public float cutDistancePerSec;
-            public float cutDirectionEntropy;
-            public float notePosEntropy;
+            public double cutDirectionEntropy;
+            public double notePosEntropy;
+            public int noteJumpSpeed;
             public int maxScore;
         }
 
@@ -38,6 +39,7 @@ namespace BeatSaberBeatmapAnalyzer
 
         public SongMetrics Analyze(BeatMap _beatMap)
         {
+        
             beatMap = _beatMap;
 
             redNotes = new ArrayList();
@@ -59,32 +61,52 @@ namespace BeatSaberBeatmapAnalyzer
 
                 if (note.time > totalBeats) totalBeats = note.time; // Keep track of how long the song is
             }
-
-            byte[] cutDirections = new byte[allNotes.Count];
-            byte[] notePos = new byte[allNotes.Count];
-
-            for (int i = 0; i < allNotes.Count; i++)
+            if (allNotes.Count > 20) //TODO: Add stamina
             {
-                Note n = (Note)allNotes[i];
-                cutDirections[i] = (byte)((Note)allNotes[i]).cutDirection;
-                notePos[i] = (byte)( n.lineIndex * 3 + n.lineLayer);
+                byte[] cutDirections = new byte[allNotes.Count];
+                byte[] notePos = new byte[allNotes.Count];
+                for (int i = 0; i < allNotes.Count; i++)
+                {
+                    Note n = (Note)allNotes[i];
+                    cutDirections[i] = (byte)((Note)allNotes[i]).cutDirection;
+                    notePos[i] = (byte)(n.lineIndex * 3 + n.lineLayer);
+                }
+                SongMetrics sm = new SongMetrics();
+                sm.avgNotesPerSec = GetAverageNotesPerSecond(allNotes, true);
+                sm.cutDistancePerSec = GetCutDistancePerSecond(redNotes) + GetCutDistancePerSecond(blueNotes);
+                sm.cutDirectionEntropy = Entropy(cutDirections);
+                sm.notePosEntropy = Entropy(notePos);
+                sm.maxScore = MaxScoreForNumberOfNotes(allNotes.Count);
+                sm.noteJumpSpeed = beatMap.noteJumpSpeed;
+                return sm;
+            }
+            else
+            {
+                return new SongMetrics();
             }
 
-            SongMetrics sm = new SongMetrics();
-            sm.avgNotesPerSec = GetAverageNotesPerSecond(allNotes, true);
-            sm.cutDistancePerSec = GetCutDistancePerSecond(redNotes) + GetCutDistancePerSecond(blueNotes);
-           // sm.cutDirectionEntropy = Entropy(cutDirections);
-           // sm.notePosEntropy = Entropy(notePos);
-            sm.maxScore = MaxScoreForNumberOfNotes(allNotes.Count);
-            return sm;
         }
-        
+        public static unsafe Double Entropy(byte[] data)
+        {
+            int* rgi = stackalloc int[0x100], pi = rgi + 0x100;
+
+            for (int i = data.Length; --i >= 0;)
+                rgi[data[i]]++;
+
+            Double H = 0.0, cb = data.Length;
+            while (--pi >= rgi)
+                if (*pi > 0)
+                    H += *pi * Math.Log(*pi / cb, 2.0);
+
+            return -H / cb;
+        }
         public float GetAverageNotesPerSecond(ArrayList notes, bool valueNoDirectionLess)
         {
             if (valueNoDirectionLess)
             {
                 return GetWeightedNoteCount(notes) / BeatsToSeconds(totalBeats);
-            } else
+            }
+            else
             {
                 return notes.Count / BeatsToSeconds(totalBeats);
             }
@@ -127,9 +149,31 @@ namespace BeatSaberBeatmapAnalyzer
                 notesAtThisTimeStep.Clear();
 
                 // find all notes at this notes time step
-                float time = ((Note)notes[i]).time;
+                float currentNoteTime = ((Note)notes[i]).time;
+                float previousNoteTime = -1;
+                float nextNoteTime = -1;
+
+                if (i != 0) { previousNoteTime = BeatsToSeconds(((Note)notes[i - 1]).time); }
+                if (i != notes.Count - 1) { nextNoteTime = BeatsToSeconds(((Note)notes[i + 1]).time); }
+
+                //Nerf Streams
+                if (previousNoteTime != -1 && nextNoteTime != -1)
+                {
+                    float timeBetween = nextNoteTime - previousNoteTime;
+                    if (timeBetween < 0.35f)
+                    {
+                        cutLeadDistance = 1f;
+                        cutFollowDistance = 0.5f; //we're in a stream
+                    }
+                    else
+                    {
+                        cutLeadDistance = 2f;
+                        cutFollowDistance = 1f;
+                    }
+                }
+
                 int j = 0;
-                while (((Note)notes[i + j]).time == time)
+                while (((Note)notes[i + j]).time == currentNoteTime)
                 {
                     notesAtThisTimeStep.Add(((Note)notes[i + j]));
                     j++;
@@ -181,9 +225,6 @@ namespace BeatSaberBeatmapAnalyzer
                 distance += cutLeadDistance + cutFollowDistance;
                 bladePos = notePos + cutDirection * cutFollowDistance;
             }
-
-            // length of cut
-
             return distance;
         }
 
@@ -208,7 +249,7 @@ namespace BeatSaberBeatmapAnalyzer
             return distance;
         }
 
-        
+
 
         private float PerBarToPerSec(float perBar)
         {
@@ -219,14 +260,14 @@ namespace BeatSaberBeatmapAnalyzer
         {
             return perBeat / BeatsToSeconds(1);
         }
-        
+
         private float BeatsToSeconds(float beats)
         {
             float minutesPerBeat = 1f / beatMap.beatsPerMinute;
             float secondsPerBeat = minutesPerBeat * 60;
             return beats * secondsPerBeat;
         }
-        public  int MaxScoreForNumberOfNotes(int noteCount)
+        public int MaxScoreForNumberOfNotes(int noteCount)
         {
             int score = 0;
             int multiplier = 1;
